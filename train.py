@@ -16,7 +16,7 @@ from generator_model import Generator
 def train_fn(disc_H, disc_Z, gen_Z, gen_H, loader, opt_disc, opt_gen, l1, mse, d_scaler, g_scaler, epoch):
     H_reals = 0
     H_fakes = 0
-    loop = tqdm(loader, leave=True, desc=f"{config.DATASET_NAME} TRAIN: ")
+    loop = tqdm(loader, leave=True, desc=f"{config.DATASET_NAME} TRAIN, Epoch {epoch}/{config.NUM_EPOCHS}: ")
 
     for idx, (zebra, horse) in enumerate(loop):
         zebra = zebra.to(config.DEVICE)
@@ -88,7 +88,7 @@ def train_fn(disc_H, disc_Z, gen_Z, gen_H, loader, opt_disc, opt_gen, l1, mse, d
             save_image(fake_horse * 0.5 + 0.5, f"{config.SAVE_IMAGE_PATH}/{config.REFERENCE_NAME}_{epoch}_{idx}.png")
             save_image(fake_zebra * 0.5 + 0.5, f"{config.SAVE_IMAGE_PATH}/{config.TARGET_NAME}_{epoch}_{idx}.png")
 
-        loop.set_postfix(H_real=H_reals / (idx + 1), H_fake=H_fakes / (idx + 1), EPOCH=epoch)
+        loop.set_postfix(H_real=H_reals / (idx + 1), H_fake=H_fakes / (idx + 1))
 
 
 def main():
