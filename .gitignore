@@ -1,1 +1,4 @@
 datasets/horse-zebra
+__pycache__
+.idea
+*__pycache__*
