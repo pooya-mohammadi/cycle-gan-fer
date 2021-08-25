@@ -13,7 +13,7 @@ LAMBDA_CYCLE = 10
 N_BLOCKS = 6
 IN_CHANNELS = 1
 NUM_WORKERS = 2
-NUM_EPOCHS = 10
+NUM_EPOCHS = 200
 LOAD_MODEL = False
 SAVE_MODEL = True
 REFERENCE_NAME = 'neutral'
@@ -34,3 +34,16 @@ transforms = A.Compose(
     ],
     additional_targets={"image0": "image"},
 )
+
+# transformers = AugmentTorch.get_augments(AugmentTorch.re
+#
+# import torchvision.transforms as tfs
+#
+# transforms = A.Compose(
+#     [
+#         tfs.Resize((IMG_w, IMG_H)),
+#         tfs.RandomHorizontalFlip(p=0.5),
+#         tfs.Normalize(mean=MEAN, std=STD),
+#         tfs.ToTensor()
+#     ],
+# )
