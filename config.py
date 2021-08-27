@@ -30,6 +30,7 @@ transforms = A.Compose(
         A.Resize(width=IMG_w, height=IMG_H),
         A.HorizontalFlip(p=0.5),
         A.Normalize(mean=MEAN, std=STD, max_pixel_value=255),
+        A.Resize(128, 128, always_apply=True),
         ToTensorV2(),
     ],
     additional_targets={"image0": "image"},
