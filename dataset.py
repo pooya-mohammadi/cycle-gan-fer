@@ -6,36 +6,36 @@ import numpy as np
 import config
 
 
-class HorseZebraDataset(Dataset):
-    def __init__(self, root_zebra, root_horse, transform=None):
-        self.root_zebra = root_zebra
-        self.root_horse = root_horse
+class ReferenceTargetDataset(Dataset):
+    def __init__(self, root_target, root_reference, transform=None):
+        self.root_target = root_target
+        self.root_reference = root_reference
         self.transform = transform
 
-        self.zebra_images = os.listdir(root_zebra)
-        self.horse_images = os.listdir(root_horse)
-        self.length_dataset = max(len(self.zebra_images), len(self.horse_images))  # 1000, 1500
-        self.zebra_len = len(self.zebra_images)
-        self.horse_len = len(self.horse_images)
+        self.target_images = os.listdir(root_target)
+        self.reference_images = os.listdir(root_reference)
+        self.length_dataset = max(len(self.target_images), len(self.reference_images))  # 1000, 1500
+        self.target_len = len(self.target_images)
+        self.reference_len = len(self.reference_images)
 
     def __len__(self):
         return self.length_dataset
 
     def __getitem__(self, index):
-        zebra_img = self.zebra_images[index % self.zebra_len]
-        horse_img = self.horse_images[index % self.horse_len]
+        target_img = self.target_images[index % self.target_len]
+        reference_img = self.reference_images[index % self.reference_len]
 
-        zebra_path = os.path.join(self.root_zebra, zebra_img)
-        horse_path = os.path.join(self.root_horse, horse_img)
+        target_path = os.path.join(self.root_target, target_img)
+        reference_path = os.path.join(self.root_reference, reference_img)
         if config.IN_CHANNELS == 3:
-            zebra_img = np.array(Image.open(zebra_path).convert("RGB"))
-            horse_img = np.array(Image.open(horse_path).convert("RGB"))
+            target_img = np.array(Image.open(target_path).convert("RGB"))
+            reference_img = np.array(Image.open(reference_path).convert("RGB"))
         else:
-            zebra_img = np.array(Image.open(zebra_path).convert("L"))
-            horse_img = np.array(Image.open(horse_path).convert("L"))
+            target_img = np.array(Image.open(target_path).convert("L"))
+            reference_img = np.array(Image.open(reference_path).convert("L"))
         if self.transform:
-            augmentations = self.transform(image=zebra_img, image0=horse_img)
-            zebra_img = augmentations["image"]
-            horse_img = augmentations["image0"]
+            augmentations = self.transform(image=target_img, image0=reference_img)
+            target_img = augmentations["image"]
+            reference_img = augmentations["image0"]
 
-        return zebra_img, horse_img
+        return target_img, reference_img
