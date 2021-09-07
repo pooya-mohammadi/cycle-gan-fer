@@ -12,10 +12,11 @@ from tqdm import tqdm
 from torchvision.utils import save_image
 from discriminator_model import Discriminator
 from generator_model import Generator
-# from deep_utils import show_destroy_cv2
+from deep_utils import show_destroy_cv2
 
-def train_fn(disc_H, disc_Z, gen_Z, gen_H, loader, opt_disc, opt_gen, l1, mse, d_scaler, g_scaler, epoch):
-    H_reals = 0
+
+def train_fn(disc_R, disc_T, gen_T, gen_R, loader, opt_disc, opt_gen, l1, mse, d_scaler, g_scaler, epoch):
+    R_reals = 0
     H_fakes = 0
     loop = tqdm(loader, leave=True, desc=f"{config.DATASET_NAME} TRAIN, Epoch {epoch}/{config.NUM_EPOCHS}: ")
 
@@ -25,20 +26,20 @@ def train_fn(disc_H, disc_Z, gen_Z, gen_H, loader, opt_disc, opt_gen, l1, mse, d
 
         # Train Discriminators H and Z
         with torch.cuda.amp.autocast():
-            fake_reference = gen_H(target)
-            D_H_real = disc_H(reference)
-            D_H_fake = disc_H(fake_reference.detach())
-            H_reals += D_H_real.mean().item()
-            H_fakes += D_H_fake.mean().item()
-            D_H_real_loss = mse(D_H_real, torch.ones_like(D_H_real))
-            D_H_fake_loss = mse(D_H_fake, torch.zeros_like(D_H_fake))
+            fake_reference = gen_R(target)
+            D_R_real = disc_R(reference)
+            D_R_fake = disc_R(fake_reference.detach())
+            R_reals += D_R_real.mean().item()
+            H_fakes += D_R_fake.mean().item()
+            D_H_real_loss = mse(D_R_real, torch.ones_like(D_R_real))
+            D_H_fake_loss = mse(D_R_fake, torch.zeros_like(D_R_fake))
             D_H_loss = D_H_real_loss + D_H_fake_loss
 
-            fake_target = gen_Z(reference)
-            D_Z_real = disc_Z(target)
-            D_Z_fake = disc_Z(fake_target.detach())
-            D_Z_real_loss = mse(D_Z_real, torch.ones_like(D_Z_real))
-            D_Z_fake_loss = mse(D_Z_fake, torch.zeros_like(D_Z_fake))
+            fake_target = gen_T(reference)
+            D_T_real = disc_T(target)
+            D_T_fake = disc_T(fake_target.detach())
+            D_Z_real_loss = mse(D_T_real, torch.ones_like(D_T_real))
+            D_Z_fake_loss = mse(D_T_fake, torch.zeros_like(D_T_fake))
             D_Z_loss = D_Z_real_loss + D_Z_fake_loss
 
             # put it togethor
@@ -52,27 +53,27 @@ def train_fn(disc_H, disc_Z, gen_Z, gen_H, loader, opt_disc, opt_gen, l1, mse, d
         # Train Generators H and Z
         with torch.cuda.amp.autocast():
             # adversarial loss for both generators
-            D_H_fake = disc_H(fake_reference)
-            D_Z_fake = disc_Z(fake_target)
-            loss_G_H = mse(D_H_fake, torch.ones_like(D_H_fake))
-            loss_G_Z = mse(D_Z_fake, torch.ones_like(D_Z_fake))
+            D_R_fake = disc_R(fake_reference)
+            D_T_fake = disc_T(fake_target)
+            loss_G_R = mse(D_R_fake, torch.ones_like(D_R_fake))
+            loss_G_T = mse(D_T_fake, torch.ones_like(D_T_fake))
 
             # cycle loss
-            cycle_target = gen_Z(fake_reference)
-            cycle_reference = gen_H(fake_target)
+            cycle_target = gen_T(fake_reference)
+            cycle_reference = gen_R(fake_target)
             cycle_target_loss = l1(target, cycle_target)
             cycle_reference_loss = l1(reference, cycle_reference)
 
             # identity loss (remove these for efficiency if you set lambda_identity=0)
-            identity_target = gen_Z(target)
-            identity_reference = gen_H(reference)
+            identity_target = gen_T(target)
+            identity_reference = gen_R(reference)
             identity_target_loss = l1(target, identity_target)
             identity_reference_loss = l1(reference, identity_reference)
 
             # add all togethor
             G_loss = (
-                    loss_G_Z
-                    + loss_G_H
+                    loss_G_T
+                    + loss_G_R
                     + cycle_target_loss * config.LAMBDA_CYCLE
                     + cycle_reference_loss * config.LAMBDA_CYCLE
                     + identity_reference_loss * config.LAMBDA_IDENTITY
@@ -86,10 +87,11 @@ def train_fn(disc_H, disc_Z, gen_Z, gen_H, loader, opt_disc, opt_gen, l1, mse, d
 
         if idx % 100 == 0:
             os.makedirs(config.SAVE_IMAGE_PATH, exist_ok=True)
-            save_image(fake_reference * 0.5 + 0.5, f"{config.SAVE_IMAGE_PATH}/{config.REFERENCE_NAME}_{epoch}_{idx}.png")
+            save_image(fake_reference * 0.5 + 0.5,
+                       f"{config.SAVE_IMAGE_PATH}/{config.REFERENCE_NAME}_{epoch}_{idx}.png")
             save_image(fake_target * 0.5 + 0.5, f"{config.SAVE_IMAGE_PATH}/{config.TARGET_NAME}_{epoch}_{idx}.png")
 
-        loop.set_postfix(H_real=H_reals / (idx + 1), H_fake=H_fakes / (idx + 1))
+        loop.set_postfix(H_real=R_reals / (idx + 1), H_fake=H_fakes / (idx + 1))
 
 
 def tensor2image(tensor):
@@ -101,7 +103,7 @@ def tensor2image(tensor):
     return images
 
 
-def valid_fn(disc_H, disc_Z, gen_Z, gen_H, loader, l1, mse, epoch):
+def valid_fn(disc_R, disc_T, gen_T, gen_R, loader, l1, mse, epoch):
     R_reals = 0
     H_fakes = 0
     loop = tqdm(loader, leave=True, desc=f"{config.DATASET_NAME} TEST, Epoch {epoch}/{config.NUM_EPOCHS}: ")
@@ -116,20 +118,20 @@ def valid_fn(disc_H, disc_Z, gen_Z, gen_H, loader, l1, mse, epoch):
 
         # Train Discriminators H and Z
         with torch.cuda.amp.autocast():
-            fake_reference = gen_H(target)
-            D_R_real = disc_H(reference)
-            D_R_fake = disc_H(fake_reference.detach())
+            fake_reference = gen_R(target)
+            D_R_real = disc_R(reference)
+            D_R_fake = disc_R(fake_reference.detach())
             R_reals += D_R_real.mean().item()
             H_fakes += D_R_fake.mean().item()
             D_H_real_loss = mse(D_R_real, torch.ones_like(D_R_real))
             D_H_fake_loss = mse(D_R_fake, torch.zeros_like(D_R_fake))
             D_H_loss = D_H_real_loss + D_H_fake_loss
 
-            fake_target = gen_Z(reference)
-            D_Z_real = disc_Z(target)
-            D_Z_fake = disc_Z(fake_target.detach())
-            D_Z_real_loss = mse(D_Z_real, torch.ones_like(D_Z_real))
-            D_Z_fake_loss = mse(D_Z_fake, torch.zeros_like(D_Z_fake))
+            fake_target = gen_T(reference)
+            D_T_real = disc_T(target)
+            D_T_fake = disc_T(fake_target.detach())
+            D_Z_real_loss = mse(D_T_real, torch.ones_like(D_T_real))
+            D_Z_fake_loss = mse(D_T_fake, torch.zeros_like(D_T_fake))
             D_Z_loss = D_Z_real_loss + D_Z_fake_loss
 
             # put it togethor
@@ -138,27 +140,27 @@ def valid_fn(disc_H, disc_Z, gen_Z, gen_H, loader, l1, mse, epoch):
         # Train Generators H and Z
         with torch.cuda.amp.autocast():
             # adversarial loss for both generators
-            D_R_fake = disc_H(fake_reference)
-            D_Z_fake = disc_Z(fake_target)
-            loss_G_H = mse(D_R_fake, torch.ones_like(D_R_fake))
-            loss_G_Z = mse(D_Z_fake, torch.ones_like(D_Z_fake))
+            D_R_fake = disc_R(fake_reference)
+            D_T_fake = disc_T(fake_target)
+            loss_G_R = mse(D_R_fake, torch.ones_like(D_R_fake))
+            loss_G_T = mse(D_T_fake, torch.ones_like(D_T_fake))
 
             # cycle loss
-            cycle_target = gen_Z(fake_reference)
-            cycle_reference = gen_H(fake_target)
+            cycle_target = gen_T(fake_reference)
+            cycle_reference = gen_R(fake_target)
             cycle_target_loss = l1(target, cycle_target)
             cycle_reference_loss = l1(reference, cycle_reference)
 
             # identity loss (remove these for efficiency if you set lambda_identity=0)
-            identity_target = gen_Z(target)
-            identity_reference = gen_H(reference)
+            identity_target = gen_T(target)
+            identity_reference = gen_R(reference)
             identity_target_loss = l1(target, identity_target)
             identity_reference_loss = l1(reference, identity_reference)
 
             # add all togethor
             G_loss = (
-                    loss_G_Z
-                    + loss_G_H
+                    loss_G_T
+                    + loss_G_R
                     + cycle_target_loss * config.LAMBDA_CYCLE
                     + cycle_reference_loss * config.LAMBDA_CYCLE
                     + identity_reference_loss * config.LAMBDA_IDENTITY
@@ -174,18 +176,18 @@ def valid_fn(disc_H, disc_Z, gen_Z, gen_H, loader, l1, mse, epoch):
 
 
 def main():
-    disc_H = Discriminator(in_channels=config.IN_CHANNELS).to(config.DEVICE)
-    disc_Z = Discriminator(in_channels=config.IN_CHANNELS).to(config.DEVICE)
-    gen_Z = Generator(img_channels=config.IN_CHANNELS, num_residuals=config.N_BLOCKS).to(config.DEVICE)
-    gen_H = Generator(img_channels=config.IN_CHANNELS, num_residuals=config.N_BLOCKS).to(config.DEVICE)
+    disc_R = Discriminator(in_channels=config.IN_CHANNELS).to(config.DEVICE)
+    disc_T = Discriminator(in_channels=config.IN_CHANNELS).to(config.DEVICE)
+    gen_T = Generator(img_channels=config.IN_CHANNELS, num_residuals=config.N_BLOCKS).to(config.DEVICE)
+    gen_R = Generator(img_channels=config.IN_CHANNELS, num_residuals=config.N_BLOCKS).to(config.DEVICE)
     opt_disc = optim.Adam(
-        list(disc_H.parameters()) + list(disc_Z.parameters()),
+        list(disc_R.parameters()) + list(disc_T.parameters()),
         lr=config.LEARNING_RATE,
         betas=(0.5, 0.999),
     )
 
     opt_gen = optim.Adam(
-        list(gen_Z.parameters()) + list(gen_H.parameters()),
+        list(gen_T.parameters()) + list(gen_R.parameters()),
         lr=config.LEARNING_RATE,
         betas=(0.5, 0.999),
     )
@@ -195,16 +197,16 @@ def main():
 
     if config.LOAD_MODEL:
         load_checkpoint(
-            config.CHECKPOINT_GEN_H, gen_H, opt_gen, config.LEARNING_RATE,
+            config.CHECKPOINT_GEN_R, gen_R, opt_gen, config.LEARNING_RATE,
         )
         load_checkpoint(
-            config.CHECKPOINT_GEN_Z, gen_Z, opt_gen, config.LEARNING_RATE,
+            config.CHECKPOINT_GEN_T, gen_T, opt_gen, config.LEARNING_RATE,
         )
         load_checkpoint(
-            config.CHECKPOINT_CRITIC_H, disc_H, opt_disc, config.LEARNING_RATE,
+            config.CHECKPOINT_CRITIC_R, disc_R, opt_disc, config.LEARNING_RATE,
         )
         load_checkpoint(
-            config.CHECKPOINT_CRITIC_Z, disc_Z, opt_disc, config.LEARNING_RATE,
+            config.CHECKPOINT_CRITIC_T, disc_T, opt_disc, config.LEARNING_RATE,
         )
 
     dataset = ReferenceTargetDataset(
@@ -212,7 +214,8 @@ def main():
         root_target=config.TRAIN_DIR + f"/{config.TARGET_NAME}", transform=config.transforms
     )
     val_dataset = ReferenceTargetDataset(
-        root_reference=config.VAL_DIR + f"/{config.REFERENCE_NAME}", root_target=config.TRAIN_DIR + f"/{config.TARGET_NAME}",
+        root_reference=config.VAL_DIR + f"/{config.REFERENCE_NAME}",
+        root_target=config.TRAIN_DIR + f"/{config.TARGET_NAME}",
         transform=config.transforms
     )
     val_loader = DataLoader(
@@ -232,16 +235,16 @@ def main():
     d_scaler = torch.cuda.amp.GradScaler()
     if config.TRAIN:
         for epoch in range(config.NUM_EPOCHS):
-            train_fn(disc_H, disc_Z, gen_Z, gen_H, loader, opt_disc, opt_gen, L1, mse, d_scaler, g_scaler, epoch)
+            train_fn(disc_R, disc_T, gen_T, gen_R, loader, opt_disc, opt_gen, L1, mse, d_scaler, g_scaler, epoch)
 
             if config.SAVE_MODEL:
-                save_checkpoint(gen_H, opt_gen, filename=config.CHECKPOINT_GEN_H)
-                save_checkpoint(gen_Z, opt_gen, filename=config.CHECKPOINT_GEN_Z)
-                save_checkpoint(disc_H, opt_disc, filename=config.CHECKPOINT_CRITIC_H)
-                save_checkpoint(disc_Z, opt_disc, filename=config.CHECKPOINT_CRITIC_Z)
+                save_checkpoint(gen_R, opt_gen, filename=config.CHECKPOINT_GEN_R)
+                save_checkpoint(gen_T, opt_gen, filename=config.CHECKPOINT_GEN_T)
+                save_checkpoint(disc_R, opt_disc, filename=config.CHECKPOINT_CRITIC_R)
+                save_checkpoint(disc_T, opt_disc, filename=config.CHECKPOINT_CRITIC_T)
     else:
         for epoch in range(config.TEST_EPOCHS):
-            valid_fn(disc_H, disc_Z, gen_Z, gen_H, val_loader, L1, mse, epoch)
+            valid_fn(disc_R, disc_T, gen_T, gen_R, val_loader, L1, mse, epoch)
 
 
 if __name__ == "__main__":
