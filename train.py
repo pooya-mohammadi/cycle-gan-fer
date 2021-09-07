@@ -17,7 +17,7 @@ from deep_utils import show_destroy_cv2
 
 def train_fn(disc_R, disc_T, gen_T, gen_R, loader, opt_disc, opt_gen, l1, mse, d_scaler, g_scaler, epoch):
     R_reals = 0
-    H_fakes = 0
+    R_fakes = 0
     loop = tqdm(loader, leave=True, desc=f"{config.DATASET_NAME} TRAIN, Epoch {epoch}/{config.NUM_EPOCHS}: ")
 
     for idx, (target, reference) in enumerate(loop):
@@ -30,20 +30,20 @@ def train_fn(disc_R, disc_T, gen_T, gen_R, loader, opt_disc, opt_gen, l1, mse, d
             D_R_real = disc_R(reference)
             D_R_fake = disc_R(fake_reference.detach())
             R_reals += D_R_real.mean().item()
-            H_fakes += D_R_fake.mean().item()
-            D_H_real_loss = mse(D_R_real, torch.ones_like(D_R_real))
-            D_H_fake_loss = mse(D_R_fake, torch.zeros_like(D_R_fake))
-            D_H_loss = D_H_real_loss + D_H_fake_loss
+            R_fakes += D_R_fake.mean().item()
+            D_R_real_loss = mse(D_R_real, torch.ones_like(D_R_real))
+            D_R_fake_loss = mse(D_R_fake, torch.zeros_like(D_R_fake))
+            D_R_loss = D_R_real_loss + D_R_fake_loss
 
             fake_target = gen_T(reference)
             D_T_real = disc_T(target)
             D_T_fake = disc_T(fake_target.detach())
-            D_Z_real_loss = mse(D_T_real, torch.ones_like(D_T_real))
-            D_Z_fake_loss = mse(D_T_fake, torch.zeros_like(D_T_fake))
-            D_Z_loss = D_Z_real_loss + D_Z_fake_loss
+            D_T_real_loss = mse(D_T_real, torch.ones_like(D_T_real))
+            D_T_fake_loss = mse(D_T_fake, torch.zeros_like(D_T_fake))
+            D_T_loss = D_T_real_loss + D_T_fake_loss
 
             # put it togethor
-            D_loss = (D_H_loss + D_Z_loss) / 2
+            D_loss = (D_R_loss + D_T_loss) / 2
 
         opt_disc.zero_grad()
         d_scaler.scale(D_loss).backward()
@@ -91,7 +91,7 @@ def train_fn(disc_R, disc_T, gen_T, gen_R, loader, opt_disc, opt_gen, l1, mse, d
                        f"{config.SAVE_IMAGE_PATH}/{config.REFERENCE_NAME}_{epoch}_{idx}.png")
             save_image(fake_target * 0.5 + 0.5, f"{config.SAVE_IMAGE_PATH}/{config.TARGET_NAME}_{epoch}_{idx}.png")
 
-        loop.set_postfix(H_real=R_reals / (idx + 1), H_fake=H_fakes / (idx + 1))
+        loop.set_postfix(R_real=R_reals / (idx + 1), R_fake=R_fakes / (idx + 1))
 
 
 def tensor2image(tensor):
@@ -105,7 +105,7 @@ def tensor2image(tensor):
 
 def valid_fn(disc_R, disc_T, gen_T, gen_R, loader, l1, mse, epoch):
     R_reals = 0
-    H_fakes = 0
+    R_fakes = 0
     loop = tqdm(loader, leave=True, desc=f"{config.DATASET_NAME} TEST, Epoch {epoch}/{config.NUM_EPOCHS}: ")
 
     for idx, (target, reference) in enumerate(loop):
@@ -122,20 +122,20 @@ def valid_fn(disc_R, disc_T, gen_T, gen_R, loader, l1, mse, epoch):
             D_R_real = disc_R(reference)
             D_R_fake = disc_R(fake_reference.detach())
             R_reals += D_R_real.mean().item()
-            H_fakes += D_R_fake.mean().item()
-            D_H_real_loss = mse(D_R_real, torch.ones_like(D_R_real))
-            D_H_fake_loss = mse(D_R_fake, torch.zeros_like(D_R_fake))
-            D_H_loss = D_H_real_loss + D_H_fake_loss
+            R_fakes += D_R_fake.mean().item()
+            D_R_real_loss = mse(D_R_real, torch.ones_like(D_R_real))
+            D_R_fake_loss = mse(D_R_fake, torch.zeros_like(D_R_fake))
+            D_R_loss = D_R_real_loss + D_R_fake_loss
 
             fake_target = gen_T(reference)
             D_T_real = disc_T(target)
             D_T_fake = disc_T(fake_target.detach())
-            D_Z_real_loss = mse(D_T_real, torch.ones_like(D_T_real))
-            D_Z_fake_loss = mse(D_T_fake, torch.zeros_like(D_T_fake))
-            D_Z_loss = D_Z_real_loss + D_Z_fake_loss
+            D_T_real_loss = mse(D_T_real, torch.ones_like(D_T_real))
+            D_T_fake_loss = mse(D_T_fake, torch.zeros_like(D_T_fake))
+            D_T_loss = D_T_real_loss + D_T_fake_loss
 
             # put it togethor
-            D_loss = (D_H_loss + D_Z_loss) / 4
+            D_loss = (D_R_loss + D_T_loss) / 4
 
         # Train Generators H and Z
         with torch.cuda.amp.autocast():
@@ -172,7 +172,7 @@ def valid_fn(disc_R, disc_T, gen_T, gen_R, loader, l1, mse, epoch):
         save_image(fake_reference * 0.5 + 0.5, f"{config.SAVE_IMAGE_PATH}/{config.REFERENCE_NAME}_{epoch}_{idx}.png")
         save_image(fake_target * 0.5 + 0.5, f"{config.SAVE_IMAGE_PATH}/{config.TARGET_NAME}_{epoch}_{idx}.png")
 
-        loop.set_postfix(H_real=R_reals / (idx + 1), H_fake=H_fakes / (idx + 1))
+        loop.set_postfix(H_real=R_reals / (idx + 1), H_fake=R_fakes / (idx + 1))
 
 
 def main():
