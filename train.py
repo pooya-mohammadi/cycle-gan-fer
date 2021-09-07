@@ -135,7 +135,7 @@ def valid_fn(disc_R, disc_T, gen_T, gen_R, loader, l1, mse, epoch):
             D_T_loss = D_T_real_loss + D_T_fake_loss
 
             # put it togethor
-            D_loss = (D_R_loss + D_T_loss) / 4
+            D_loss = (D_R_loss + D_T_loss) / 2
 
         # Train Generators H and Z
         with torch.cuda.amp.autocast():
@@ -182,13 +182,13 @@ def main():
     gen_R = Generator(img_channels=config.IN_CHANNELS, num_residuals=config.N_BLOCKS).to(config.DEVICE)
     opt_disc = optim.Adam(
         list(disc_R.parameters()) + list(disc_T.parameters()),
-        lr=config.LEARNING_RATE,
+        lr=config.DIS_LEARNING_RATE,
         betas=(0.5, 0.999),
     )
 
     opt_gen = optim.Adam(
         list(gen_T.parameters()) + list(gen_R.parameters()),
-        lr=config.LEARNING_RATE,
+        lr=config.GEN_LEARNING_RATE,
         betas=(0.5, 0.999),
     )
 
@@ -197,16 +197,16 @@ def main():
 
     if config.LOAD_MODEL:
         load_checkpoint(
-            config.CHECKPOINT_GEN_R, gen_R, opt_gen, config.LEARNING_RATE,
+            config.CHECKPOINT_GEN_R, gen_R, opt_gen, config.GEN_LEARNING_RATE,
         )
         load_checkpoint(
-            config.CHECKPOINT_GEN_T, gen_T, opt_gen, config.LEARNING_RATE,
+            config.CHECKPOINT_GEN_T, gen_T, opt_gen, config.GEN_LEARNING_RATE,
         )
         load_checkpoint(
-            config.CHECKPOINT_CRITIC_R, disc_R, opt_disc, config.LEARNING_RATE,
+            config.CHECKPOINT_CRITIC_R, disc_R, opt_disc, config.DIS_LEARNING_RATE,
         )
         load_checkpoint(
-            config.CHECKPOINT_CRITIC_T, disc_T, opt_disc, config.LEARNING_RATE,
+            config.CHECKPOINT_CRITIC_T, disc_T, opt_disc, config.DIS_LEARNING_RATE,
         )
 
     dataset = ReferenceTargetDataset(
