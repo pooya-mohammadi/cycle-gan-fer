@@ -65,11 +65,18 @@ def train_fn(disc_R, disc_T, gen_T, gen_R, loader, opt_disc, opt_gen, l1, mse, d
             cycle_reference_loss = l1(reference, cycle_reference)
 
             # identity loss (remove these for efficiency if you set lambda_identity=0)
-            identity_target = gen_T(target)
-            identity_reference = gen_R(reference)
-            identity_target_loss = l1(target, identity_target)
-            identity_reference_loss = l1(reference, identity_reference)
+            if config.LAMBDA_IDENTITY:
+                identity_target = gen_T(target)
+                identity_reference = gen_R(reference)
+                identity_target_loss = l1(target, identity_target)
+                identity_reference_loss = l1(reference, identity_reference)
+            else:
+                identity_target_loss = 0
+                identity_reference_loss = 0
 
+            # identity loss
+            gen_r_identity = 1 / mse(target, fake_reference)
+            gen_t_identity = 1 / mse(reference, fake_target)
             # add all togethor
             G_loss = (
                     loss_G_T
@@ -78,6 +85,8 @@ def train_fn(disc_R, disc_T, gen_T, gen_R, loader, opt_disc, opt_gen, l1, mse, d
                     + cycle_reference_loss * config.LAMBDA_CYCLE
                     + identity_reference_loss * config.LAMBDA_IDENTITY
                     + identity_target_loss * config.LAMBDA_IDENTITY
+                    + config.LAMBDA_GEN_IDENTITY * gen_t_identity
+                    + config.LAMBDA_GEN_IDENTITY * gen_r_identity
             )
 
         opt_gen.zero_grad()
@@ -152,10 +161,18 @@ def valid_fn(disc_R, disc_T, gen_T, gen_R, loader, l1, mse, epoch):
             cycle_reference_loss = l1(reference, cycle_reference)
 
             # identity loss (remove these for efficiency if you set lambda_identity=0)
-            identity_target = gen_T(target)
-            identity_reference = gen_R(reference)
-            identity_target_loss = l1(target, identity_target)
-            identity_reference_loss = l1(reference, identity_reference)
+            if config.LAMBDA_IDENTITY:
+                identity_target = gen_T(target)
+                identity_reference = gen_R(reference)
+                identity_target_loss = l1(target, identity_target)
+                identity_reference_loss = l1(reference, identity_reference)
+            else:
+                identity_target_loss = 0
+                identity_reference_loss = 0
+
+            # identity loss
+            gen_r_identity = 1 / mse(target, fake_reference)
+            gen_t_identity = 1 / mse(reference, fake_target)
 
             # add all togethor
             G_loss = (
@@ -165,6 +182,8 @@ def valid_fn(disc_R, disc_T, gen_T, gen_R, loader, l1, mse, epoch):
                     + cycle_reference_loss * config.LAMBDA_CYCLE
                     + identity_reference_loss * config.LAMBDA_IDENTITY
                     + identity_target_loss * config.LAMBDA_IDENTITY
+                    + config.LAMBDA_GEN_IDENTITY * gen_t_identity
+                    + config.LAMBDA_GEN_IDENTITY * gen_r_identity
             )
 
         print(f'{epoch}-{idx} D-Loss: {D_loss}, G-Loss: {G_loss}')
