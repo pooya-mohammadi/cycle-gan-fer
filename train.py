@@ -267,7 +267,8 @@ def valid_fn(disc_R, disc_T, gen_RT, gen_TR, loader, l1, mse, epoch, mlflow):
             mlflow.log_artifact(target_path, join('images', target_path))
 
 
-def main():
+def main(mlflow_source='./mlruns'):
+    mlflow.set_tracking_uri(mlflow_source)
     mlflow.set_experiment(config.MLFLOW_EXP)
     mlflow.start_run()
     disc_R = Discriminator(in_channels=config.IN_CHANNELS).to(config.DEVICE)
