@@ -1,1 +1,3 @@
 albumentations==1.0.0
+mlflow
+deep_utils
