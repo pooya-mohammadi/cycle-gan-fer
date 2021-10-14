@@ -2,3 +2,6 @@ datasets/horse-zebra
 __pycache__
 .idea
 *__pycache__*
+mlruns
+results
+save_images
