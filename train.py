@@ -24,6 +24,7 @@ def train_fn(disc_R, disc_T, gen_RT, gen_TR, loader, opt_disc, opt_gen, l1, mse,
     gen_TR.train()
     gen_RT.train()
     loop = tqdm(loader, leave=True, desc=f"{config.DATASET_NAME} TRAIN, Epoch {epoch}/{config.NUM_EPOCHS}: ")
+    loop_len = len(loop)
 
     for idx, (target, reference) in enumerate(loop):
         step_num = epoch * len(loop) + idx + 1
@@ -88,8 +89,8 @@ def train_fn(disc_R, disc_T, gen_RT, gen_TR, loader, opt_disc, opt_gen, l1, mse,
             # cycle loss
             cycle_target = gen_RT(fake_reference)
             cycle_reference = gen_TR(fake_target)
-            cycle_target_loss = l1(target, cycle_target) * config.LAMBDA_CYCLE
-            cycle_reference_loss = l1(reference, cycle_reference) * config.LAMBDA_CYCLE
+            cycle_target_loss = l1(target, cycle_target) * config.CYCLE_LOSS_COEFFICIENT
+            cycle_reference_loss = l1(reference, cycle_reference) * config.CYCLE_LOSS_COEFFICIENT
 
             # identity loss (remove these for efficiency if you set lambda_identity=0)
             # if config.LAMBDA_IDENTITY:
@@ -101,20 +102,27 @@ def train_fn(disc_R, disc_T, gen_RT, gen_TR, loader, opt_disc, opt_gen, l1, mse,
             #     identity_target_loss = 0
             #     identity_reference_loss = 0
 
-            # identity loss
-            gen_tr_identity = 1 / mse(target, fake_reference) * config.LAMBDA_GEN_IDENTITY
-            gen_rt_identity = 1 / mse(reference, fake_target) * config.LAMBDA_GEN_IDENTITY
+            # identity losspiq
+            # gen_tr_identity = 1 / mse(target, fake_reference) * config.LAMBDA_GEN_IDENTITY
+            # gen_rt_identity = 1 / mse(reference, fake_target) * config.LAMBDA_GEN_IDENTITY
             # add all together
+
+            G_loss_execpt_cycle = (
+                    loss_G_RT +
+                    loss_G_TR
+
+            )
+            cycle_coef = D_loss / G_loss_execpt_cycle
+            cycle_target_loss *= cycle_coef
+            cycle_reference_loss *= cycle_coef
+
             G_loss = (
                     loss_G_RT +
                     loss_G_TR +
                     cycle_target_loss +
-                    cycle_reference_loss +
-                    gen_tr_identity +
-                    gen_rt_identity
+                    cycle_reference_loss
 
             )
-
         # get the metrics
         # gen loss
         mlflow.log_metric("loss_G_TR", loss_G_TR.item(), step=step_num)
@@ -125,10 +133,21 @@ def train_fn(disc_R, disc_T, gen_RT, gen_TR, loader, opt_disc, opt_gen, l1, mse,
         mlflow.log_metric("cycle_reference_loss", cycle_reference_loss.item(), step=step_num)
 
         # identity loss
-        mlflow.log_metric("gen_tr_identity", gen_tr_identity.item(), step=step_num)
-        mlflow.log_metric("gen_rt_identity", gen_rt_identity.item(), step=step_num)
+        # mlflow.log_metric("gen_tr_identity", gen_tr_identity.item(), step=step_num)
+        # mlflow.log_metric("gen_rt_identity", gen_rt_identity.item(), step=step_num)
         # final loss
         mlflow.log_metric("G_loss", G_loss.item(), step=step_num)
+
+        os.makedirs(config.SAVE_IMAGE_PATH, exist_ok=True)
+        if idx and idx % (loop_len // config.IMG_SAVE_INTERVAL) == 0:
+            reference_path = f"{config.SAVE_IMAGE_PATH}/{config.REFERENCE_NAME}_{epoch}_{idx}.png"
+            target_path = f"{config.SAVE_IMAGE_PATH}/{config.TARGET_NAME}_{epoch}_{idx}.png"
+            save_image(fake_reference * 0.5 + 0.5, reference_path)
+            save_image(fake_target * 0.5 + 0.5, target_path)
+
+            # add to mlflow
+            mlflow.log_artifact(reference_path, join('images', reference_path))
+            mlflow.log_artifact(target_path, join('images', target_path))
 
         opt_gen.zero_grad()
         g_scaler.scale(G_loss).backward()
@@ -212,8 +231,8 @@ def valid_fn(disc_R, disc_T, gen_RT, gen_TR, loader, l1, mse, epoch, mlflow):
             # cycle loss
             cycle_target = gen_RT(fake_reference)
             cycle_reference = gen_TR(fake_target)
-            cycle_target_loss = l1(target, cycle_target) * config.LAMBDA_CYCLE
-            cycle_reference_loss = l1(reference, cycle_reference) * config.LAMBDA_CYCLE
+            cycle_target_loss = l1(target, cycle_target) * config.CYCLE_LOSS_COEFFICIENT
+            cycle_reference_loss = l1(reference, cycle_reference) * config.CYCLE_LOSS_COEFFICIENT
 
             # # identity loss (remove these for efficiency if you set lambda_identity=0)
             # if config.LAMBDA_IDENTITY:
@@ -226,17 +245,25 @@ def valid_fn(disc_R, disc_T, gen_RT, gen_TR, loader, l1, mse, epoch, mlflow):
             #     identity_reference_loss = 0
 
             # identity loss
-            gen_tr_identity = 1 / mse(target, fake_reference) * config.LAMBDA_GEN_IDENTITY
-            gen_rt_identity = 1 / mse(reference, fake_target) * config.LAMBDA_GEN_IDENTITY
+            # gen_tr_identity = 1 / mse(target, fake_reference) * config.LAMBDA_GEN_IDENTITY
+            # gen_rt_identity = 1 / mse(reference, fake_target) * config.LAMBDA_GEN_IDENTITY
 
             # add all together
+            G_loss_execpt_cycle = (
+                    loss_G_RT +
+                    loss_G_TR
+
+            )
+            cycle_coef = D_loss / G_loss_execpt_cycle
+            cycle_target_loss *= cycle_coef
+            cycle_reference_loss *= cycle_coef
+
             G_loss = (
                     loss_G_RT
                     + loss_G_TR
                     + cycle_target_loss
                     + cycle_reference_loss
-                    + gen_tr_identity
-                    + gen_rt_identity
+
             )
 
         # get the metrics
@@ -249,8 +276,8 @@ def valid_fn(disc_R, disc_T, gen_RT, gen_TR, loader, l1, mse, epoch, mlflow):
         mlflow.log_metric("val_cycle_reference_loss", cycle_reference_loss.item(), step=step_num)
 
         # identity loss
-        mlflow.log_metric("val_gen_tr_identity", gen_tr_identity.item(), step=step_num)
-        mlflow.log_metric("val_gen_rt_identity", gen_rt_identity.item(), step=step_num)
+        # mlflow.log_metric("val_gen_tr_identity", gen_tr_identity.item(), step=step_num)
+        # mlflow.log_metric("val_gen_rt_identity", gen_rt_identity.item(), step=step_num)
         # final loss
         mlflow.log_metric("val_G_loss", G_loss.item(), step=step_num)
 
@@ -332,7 +359,7 @@ def main(mlflow_source='./mlruns'):
         for epoch in range(config.NUM_EPOCHS):
             train_fn(disc_R, disc_T, gen_RT, gen_TR, loader, opt_disc,
                      opt_gen, L1, mse, d_scaler, g_scaler, epoch, mlflow)
-            valid_fn(disc_R, disc_T, gen_RT, gen_TR, val_loader, L1, mse, epoch, mlflow)
+            # valid_fn(disc_R, disc_T, gen_RT, gen_TR, val_loader, L1, mse, epoch, mlflow)
 
             if config.SAVE_MODEL:
                 save_checkpoint(gen_TR, opt_gen, filename=config.CHECKPOINT_GEN_R)
