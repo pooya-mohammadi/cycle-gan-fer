@@ -123,6 +123,8 @@ def train_fn(disc_R, disc_T, gen_RT, gen_TR, loader, opt_disc, opt_gen, l1, mse,
         )
         # get the metrics
         # gen loss
+
+        mlflow.log_metric('cycle_coef', cycle_coef.item(), step=step_num)
         mlflow.log_metric("loss_G_TR", loss_G_TR.item(), step=step_num)
         mlflow.log_metric("loss_G_RT", loss_G_RT.item(), step=step_num)
 
