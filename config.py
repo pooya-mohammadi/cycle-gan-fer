@@ -2,6 +2,7 @@ import torch
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
+LOG_PATH = "logs"
 MLFLOW_EXP = 'identity_loss'
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 DATASET_NAME = "fer"
@@ -16,12 +17,12 @@ CYCLE_LOSS_COEFFICIENT = 5
 LAMBDA_GEN_IDENTITY = 1.0
 N_BLOCKS = 6
 IN_CHANNELS = 1
-NUM_WORKERS = 0
+NUM_WORKERS = 8
 NUM_EPOCHS = 200
 TRAIN = True
-TEST_EPOCHS = 1
 LOAD_MODEL = False
 SAVE_MODEL = True
+TEST_EPOCHS = 1
 REFERENCE_NAME = 'neutral'
 TARGET_NAME = 'disgust'
 CHECKPOINT_GEN_R = "gen_tr.pth.tar"
