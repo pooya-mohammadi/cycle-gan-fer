@@ -41,9 +41,11 @@ def train_fn(disc_R, disc_T, gen_RT, gen_TR, loader, opt_disc, opt_gen, l1, mse,
         target = target.to(config.DEVICE)
         reference = reference.to(config.DEVICE)
 
-        # Train Discriminators H and Z
+        # Train Discriminators N and D
         # with torch.cuda.amp.autocast():
+        # Discriminator Target
         toggle_grad(disc_R, disc_T, True)
+
         fake_reference = gen_TR(target)
         # d_r results
         D_R_real = disc_R(reference)
@@ -54,6 +56,7 @@ def train_fn(disc_R, disc_T, gen_RT, gen_TR, loader, opt_disc, opt_gen, l1, mse,
         D_R_fake_loss = mse(D_R_fake, torch.zeros_like(D_R_fake))
         D_R_loss = D_R_real_loss + D_R_fake_loss
 
+        # Discriminator Reference
         fake_target = gen_RT(reference)
 
         # d_t results
@@ -67,8 +70,8 @@ def train_fn(disc_R, disc_T, gen_RT, gen_TR, loader, opt_disc, opt_gen, l1, mse,
 
         # put it together
         D_loss = (D_R_loss + D_T_loss) / 2
-        logs = dict()
 
+        logs = dict()
         # logs = dict(
         # get the metrics
         # disc + reference loss
@@ -92,12 +95,12 @@ def train_fn(disc_R, disc_T, gen_RT, gen_TR, loader, opt_disc, opt_gen, l1, mse,
         # mlflow.log_metric("D_T_loss", D_T_loss.item(), step=step_num)
         # # disc loss
         # mlflow.log_metric("D_loss", D_loss.item(), step=step_num)
+        if train:
+            opt_disc.zero_grad()
+            D_loss.backward()
+            opt_disc.step()
 
-        opt_disc.zero_grad()
-        D_loss.backward()
-        opt_disc.step()
-
-        # Train Generators H and Z
+        # Train Generators N and D
         # adversarial loss for both generators
         toggle_grad(disc_R, disc_T, False)
         D_R_fake = disc_R(fake_reference)
@@ -125,14 +128,17 @@ def train_fn(disc_R, disc_T, gen_RT, gen_TR, loader, opt_disc, opt_gen, l1, mse,
         # identity losspiq
         # gen_tr_identity = 1 / mse(target, fake_reference) * config.LAMBDA_GEN_IDENTITY
         # gen_rt_identity = 1 / mse(reference, fake_target) * config.LAMBDA_GEN_IDENTITY
-        # add all together
 
+        # add all together
         G_loss_execpt_cycle = (
                 loss_G_RT +
                 loss_G_TR
         )
-        cycle_coef = D_loss / G_loss_execpt_cycle
-        cycle_coef = cycle_coef.detach()
+        # Cycle loss coefficient heuristically calculated!
+        cycle_coef = torch.tensor((D_loss.item() / G_loss_execpt_cycle.item()))
+        logs[f"{type_}_cycle_target_loss_gross"] = cycle_target_loss.item()
+        logs[f"{type_}_cycle_reference_loss_gross"] = cycle_reference_loss.item()
+
         cycle_target_loss *= cycle_coef
         cycle_reference_loss *= cycle_coef
 
@@ -148,6 +154,8 @@ def train_fn(disc_R, disc_T, gen_RT, gen_TR, loader, opt_disc, opt_gen, l1, mse,
         logs[f"{type_}_cycle_coef"] = cycle_coef.item()
         logs[f"{type_}_loss_G_TR"] = loss_G_TR.item()
         logs[f"{type_}_loss_G_RT"] = loss_G_RT.item()
+        logs[f"{type_}_G_loss_execpt_cycle"] = G_loss_execpt_cycle.item()
+
         # mlflow.log_metric('cycle_coef', cycle_coef.item(), step=step_num)
         # mlflow.log_metric("loss_G_TR", loss_G_TR.item(), step=step_num)
         # mlflow.log_metric("loss_G_RT", loss_G_RT.item(), step=step_num)
